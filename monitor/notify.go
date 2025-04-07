@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/rtrollebo/geo-monitor-framework/geo"
-	"github.com/rtrollebo/geo-monitor-framework/internal"
+	"github.com/rtrollebo/geo-monitor-framework/system"
 )
 
 type Notifications struct {
@@ -24,7 +24,7 @@ func Run(ctx context.Context, notifier Notifier) error {
 	logWarning := ctx.Value("logwarning").(*log.Logger)
 	logInfo := ctx.Value("loginfo").(*log.Logger)
 
-	notifications, readFileErrorNot := internal.ReadFile[Notifications]("notifications.json")
+	notifications, readFileErrorNot := system.ReadFile[Notifications]("notifications.json")
 	if readFileErrorNot != nil {
 		logError.Println("Failed to read notifications file")
 		return readFileErrorNot
@@ -37,7 +37,7 @@ func Run(ctx context.Context, notifier Notifier) error {
 		}
 	}
 
-	events, readFileErr := internal.ReadFile[geo.GeoEvent]("events.json")
+	events, readFileErr := system.ReadFile[geo.GeoEvent]("events.json")
 	if readFileErr != nil {
 		logError.Println("Failed to read events file")
 	}
@@ -67,7 +67,7 @@ func Run(ctx context.Context, notifier Notifier) error {
 		return nil
 	}
 	notifications = append(notifications, Notifications{Time: time.Now(), Recipient: notifier.getRecipients()[0]})
-	writeErrorNot := internal.WriteFile[Notifications](notifications, "notifications.json")
+	writeErrorNot := system.WriteFile[Notifications](notifications, "notifications.json")
 	if writeErrorNot != nil {
 		logError.Println("Failed to write notifications file")
 		return writeErrorNot
