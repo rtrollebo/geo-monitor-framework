@@ -15,8 +15,8 @@ type Notifications struct {
 }
 
 type Notifier interface {
-	send() error
-	getRecipients() []string
+	Send() error
+	GetRecipients() []string
 }
 
 func Run(ctx context.Context, notifier Notifier) error {
@@ -61,19 +61,19 @@ func Run(ctx context.Context, notifier Notifier) error {
 
 	// Write notfications
 
-	recipient := notifier.getRecipients()
+	recipient := notifier.GetRecipients()
 	if recipient == nil || len(recipient) == 0 {
 		logWarning.Println("No recipients found for notification")
 		return nil
 	}
-	notifications = append(notifications, Notifications{Time: time.Now(), Recipient: notifier.getRecipients()[0]})
+	notifications = append(notifications, Notifications{Time: time.Now(), Recipient: notifier.GetRecipients()[0]})
 	writeErrorNot := system.WriteFile[Notifications](notifications, "notifications.json")
 	if writeErrorNot != nil {
 		logError.Println("Failed to write notifications file")
 		return writeErrorNot
 	}
 
-	errNotify := notifier.send()
+	errNotify := notifier.Send()
 	if errNotify != nil {
 		logError.Println("Failed to send notification: " + errNotify.Error())
 		return errNotify
