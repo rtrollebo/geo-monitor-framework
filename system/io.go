@@ -3,7 +3,6 @@ package system
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"log"
 	"os"
 )
@@ -37,27 +36,17 @@ func WriteFile[T any](data []T, name string) error {
 	return nil
 }
 
-func InitApp(appname string) context.Context {
-	logFileName := appname + ".log"
-	fileLogging, err := os.OpenFile(logFileName, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0666)
+func InitLogging(logFilePath string) (*log.Logger, *log.Logger, *log.Logger, error) {
+	logFile, err := os.OpenFile(logFilePath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
 	if err != nil {
-		log.Fatal(err)
+		return nil, nil, nil, err
 	}
-	defer fileLogging.Close()
 
-	var LogInfo *log.Logger
-	var LogWarning *log.Logger
-	var LogError *log.Logger
+	infoLogger := log.New(logFile, "INFO: ", log.Ldate|log.Ltime)
+	warnLogger := log.New(logFile, "WARNING: ", log.Ldate|log.Ltime)
+	errorLogger := log.New(logFile, "ERROR: ", log.Ldate|log.Ltime)
 
-	LogInfo = log.New(fileLogging, fmt.Sprintf("%s - INFO:", appname), log.Ldate|log.Ltime)
-	LogWarning = log.New(fileLogging, fmt.Sprintf("%s - WARNING:", appname), log.Ldate|log.Ltime)
-	LogError = log.New(fileLogging, fmt.Sprintf("%s - ERROR:", appname), log.Ldate|log.Ltime)
-
-	ctx := context.Background()
-	ctx = context.WithValue(ctx, "loginfo", LogInfo)
-	ctx = context.WithValue(ctx, "logwarning", LogWarning)
-	ctx = context.WithValue(ctx, "logerror", LogError)
-	return ctx
+	return infoLogger, warnLogger, errorLogger, nil
 }
 
 func GetLog(ctx context.Context, logName string) *log.Logger {
@@ -66,4 +55,8 @@ func GetLog(ctx context.Context, logName string) *log.Logger {
 		return nil
 	}
 	return logInfo.(*log.Logger)
+}
+
+func SetLog(ctx context.Context, logName string, logger *log.Logger) {
+	ctx = context.WithValue(ctx, logName, logger)
 }
