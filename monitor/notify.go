@@ -15,6 +15,7 @@ type Notifications struct {
 }
 
 type Notifier interface {
+	LoadGeoEvent(geo.GeoEvent) error
 	Send() error
 	GetRecipients() []string
 }
@@ -72,7 +73,7 @@ func Run(ctx context.Context, notifier Notifier) error {
 		logError.Println("Failed to write notifications file")
 		return writeErrorNot
 	}
-
+	notifier.LoadGeoEvent(recentEvent)
 	errNotify := notifier.Send()
 	if errNotify != nil {
 		logError.Println("Failed to send notification: " + errNotify.Error())
