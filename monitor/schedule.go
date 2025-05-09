@@ -4,42 +4,82 @@ import (
 	"context"
 	"fmt"
 	"log"
-	"os"
 	"runtime"
+	"sync"
 	"time"
 )
 
-func RunSchedule(ctx context.Context, interval int, sign chan os.Signal, messages chan TaskResult, tasks []Runner) {
-	logInfo := ctx.Value("loginfo").(*log.Logger)
-	for {
-		select {
-		case <-sign:
-			logInfo.Println("Received signal to stop")
-			return
-		default:
-			for _, v := range tasks {
-				go v.Run(messages, ctx)
-			}
-			readChannelErr := readChannel(messages, 3)
-			if readChannelErr != nil {
-				logInfo.Println("Error reading channel:", readChannelErr)
-				os.Exit(1)
-			}
-			time.Sleep(time.Duration(interval) * time.Second)
-
-		}
-	}
+type TaskSchedule struct {
+	Task     Runner
+	Delay    time.Duration
+	Interval time.Duration
 }
 
-func readChannel(messages chan TaskResult, totalNumberOfTasks int) error {
-	timeOut := 10
+func RunSchedule(ctx context.Context, tasks []TaskSchedule, messages chan TaskResult) {
+	logError := ctx.Value("logerror").(*log.Logger)
+	var wg sync.WaitGroup
+
+	for _, schedule := range tasks {
+		wg.Add(1)
+		go func(s TaskSchedule) {
+			defer wg.Done()
+
+			select {
+			case <-time.After(s.Delay):
+			case <-ctx.Done():
+				return
+			}
+			for {
+				select {
+				case <-ctx.Done():
+					return
+				default:
+					s.Task.Run(messages, ctx)
+				}
+
+				select {
+				case <-time.After(s.Interval):
+				case <-ctx.Done():
+					return
+				}
+			}
+		}(schedule)
+	}
+
+	go func() {
+		err := readChannel(ctx, messages, len(tasks))
+		if err != nil {
+			logError.Println("Failed to finalize tasks: " + err.Error())
+		}
+	}()
+
+	wg.Wait()
+}
+
+func readChannel(ctx context.Context, messages chan TaskResult, totalNumberOfTasks int) error {
+	logInfo := ctx.Value("loginfo").(*log.Logger)
+	timeout := 10 * time.Second
+	timer := time.NewTimer(timeout)
+	defer timer.Stop()
+
 	for {
 		select {
-		case <-messages:
-		case <-time.After(time.Second * time.Duration(timeOut)):
-			if runtime.NumGoroutine() > totalNumberOfTasks {
-				return fmt.Errorf("Tasks taking too long time")
+		case msg := <-messages:
+			logInfo.Println("Message from task: " + msg.Cause)
+
+			if !timer.Stop() {
+				<-timer.C
 			}
+			timer.Reset(timeout)
+
+		case <-timer.C:
+			if runtime.NumGoroutine() > totalNumberOfTasks+5 {
+				return fmt.Errorf("tasks taking too long time")
+			}
+			return nil
+
+		case <-ctx.Done():
+			logInfo.Println("Application shutdown received")
 			return nil
 		}
 	}
